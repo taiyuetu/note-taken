@@ -6,7 +6,7 @@ require_once __DIR__ . '/../includes/repositories.php';
 
 function registration_requires_invite_code(): bool
 {
-    return app_invite_code() !== '88888888';
+    return app_invite_code() !== '';
 }
 
 function validate_registration(array $input): array

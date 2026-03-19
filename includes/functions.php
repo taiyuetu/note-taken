@@ -15,7 +15,21 @@ function app_url(string $path = ''): string
     return $basePath . '/' . ltrim($path, '/');
 }
 
-function redirect(string $path): never
+function absolute_app_url(string $path = ''): string
+{
+    $configured = configured_app_url();
+
+    if ($configured !== '') {
+        return $configured . '/' . ltrim($path, '/');
+    }
+
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+
+    return $scheme . '://' . $host . app_url($path);
+}
+
+function redirect(string $path): void
 {
     header('Location: ' . app_url($path));
     exit;
@@ -123,6 +137,26 @@ function format_datetime(?string $value): string
     return (new DateTimeImmutable($value))->format('Y-m-d H:i');
 }
 
+function format_bytes(int $bytes): string
+{
+    if ($bytes < 1024) {
+        return $bytes . ' B';
+    }
+
+    $units = ['KB', 'MB', 'GB', 'TB'];
+    $value = $bytes / 1024;
+
+    foreach ($units as $unit) {
+        if ($value < 1024 || $unit === end($units)) {
+            return rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.') . ' ' . $unit;
+        }
+
+        $value /= 1024;
+    }
+
+    return $bytes . ' B';
+}
+
 function excerpt(?string $html, int $limit = 140): string
 {
     $text = trim(strip_tags((string) $html));
@@ -147,7 +181,9 @@ function clean_html(string $html): string
 
 function build_query(array $params): string
 {
-    return http_build_query(array_filter($params, static fn ($value) => $value !== null && $value !== ''));
+    return http_build_query(array_filter($params, function ($value) {
+        return $value !== null && $value !== '';
+    }));
 }
 
 function storage_path(string $path = ''): string
@@ -201,24 +237,3 @@ function normalize_uploaded_files(array $files): array
 
     return $normalized;
 }
-
-function format_bytes(int $bytes): string
-{
-    if ($bytes < 1024) {
-        return $bytes . ' B';
-    }
-
-    $units = ['KB', 'MB', 'GB'];
-    $value = $bytes / 1024;
-
-    foreach ($units as $unit) {
-        if ($value < 1024 || $unit === 'GB') {
-            return number_format($value, $value >= 10 ? 0 : 1) . ' ' . $unit;
-        }
-
-        $value /= 1024;
-    }
-
-    return $bytes . ' B';
-}
-

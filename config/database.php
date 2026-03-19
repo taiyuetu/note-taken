@@ -4,6 +4,19 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
 
+function get_env_var(string $name, $default = false)
+{
+    $val = getenv($name);
+    if ($val === false && isset($_ENV[$name])) {
+        $val = $_ENV[$name];
+    }
+    if ($val === false && isset($_SERVER[$name])) {
+        $val = $_SERVER[$name];
+    }
+
+    return $val !== false ? $val : $default;
+}
+
 function db(): PDO
 {
     static $pdo = null;
@@ -12,11 +25,11 @@ function db(): PDO
         return $pdo;
     }
 
-    $host = getenv('DB_HOST') ?: '127.0.0.1';
-    $port = getenv('DB_PORT') ?: '3306';
-    $name = getenv('DB_NAME') ?: 'notes';
-    $user = getenv('DB_USER') ?: 'root';
-    $pass = getenv('DB_PASS') ?: '';
+    $host = get_env_var('DB_HOST', '127.0.0.1');
+    $port = get_env_var('DB_PORT', '3306');
+    $name = get_env_var('DB_NAME', 'notes');
+    $user = get_env_var('DB_USER', 'root');
+    $pass = get_env_var('DB_PASS', '');
 
     $dsn = sprintf('mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4', $host, $port, $name);
 

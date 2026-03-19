@@ -20,10 +20,7 @@ if ($noteId > 0 && !$note) {
 
 $shareUrl = '';
 if ($note && (int) $note['is_public'] === 1) {
-    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    $base = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/\\');
-    $shareUrl = $scheme . '://' . $host . $base . '/share.php?token=' . $note['share_token'];
+    $shareUrl = absolute_app_url('share.php?token=' . $note['share_token']);
 }
 
 require_once __DIR__ . '/../includes/header.php';
