@@ -9,6 +9,7 @@ require_auth();
 $userId = current_user_id();
 $noteId = (int) ($_GET['id'] ?? 0);
 $note = $noteId > 0 ? get_note($userId, $noteId) : null;
+$attachments = $note ? get_note_attachments($userId, (int) $note['id']) : [];
 $categories = get_categories($userId);
 $pageTitle = $note ? 'Edit Note' : 'Create Note';
 
@@ -41,7 +42,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="row g-4 align-items-start">
     <div class="col-xl-8">
         <section class="editor-card">
-            <form method="post" action="<?= e(app_url('note_actions.php')) ?>">
+            <form method="post" action="<?= e(app_url('note_actions.php')) ?>" enctype="multipart/form-data">
                 <input type="hidden" name="_csrf" value="<?= e(csrf_token()) ?>">
                 <input type="hidden" name="action" value="save">
                 <input type="hidden" name="note_id" value="<?= (int) ($note['id'] ?? 0) ?>">
@@ -73,6 +74,12 @@ require_once __DIR__ . '/../includes/header.php';
                         <div data-note-editor data-note-id="<?= (int) ($note['id'] ?? 0) ?>" data-autosave-url="<?= e(app_url('note_actions.php')) ?>" data-csrf="<?= e(csrf_token()) ?>"></div>
                     </div>
                     <textarea class="d-none" name="content" data-note-content><?= e($note['content'] ?? '') ?></textarea>
+                </div>
+
+                <div class="field-stack mb-3">
+                    <label class="field-label" for="attachments">Attachments</label>
+                    <input class="form-control" id="attachments" type="file" name="attachments[]" multiple>
+                    <p class="upload-hint mb-0">Upload documents, images, archives, audio, or video up to <?= e(format_bytes(NOTE_ATTACHMENT_MAX_BYTES)) ?> each.</p>
                 </div>
 
                 <div class="editor-footer">
@@ -113,7 +120,37 @@ require_once __DIR__ . '/../includes/header.php';
                     <div><span>Category</span><strong><?= e($note['category_name'] ?: 'Uncategorized') ?></strong></div>
                     <div><span>Created</span><strong><?= e(format_datetime($note['created_at'])) ?></strong></div>
                     <div><span>Updated</span><strong><?= e(format_datetime($note['updated_at'])) ?></strong></div>
+                    <div><span>Attachments</span><strong><?= count($attachments) ?></strong></div>
                 </div>
+            </section>
+
+            <section class="share-card mb-4">
+                <p class="eyebrow mb-1">Attachments</p>
+                <h2 class="section-title mb-2">Files on this note</h2>
+                <?php if ($attachments): ?>
+                    <div class="attachment-list">
+                        <?php foreach ($attachments as $attachment): ?>
+                            <article class="attachment-item">
+                                <div class="attachment-copy">
+                                    <strong><?= e($attachment['original_name']) ?></strong>
+                                    <span><?= e(strtoupper($attachment['mime_type'])) ?> · <?= e(format_bytes((int) $attachment['file_size'])) ?></span>
+                                </div>
+                                <div class="attachment-actions">
+                                    <a class="btn app-btn app-btn-ghost attachment-btn" href="<?= e(app_url('attachment.php?id=' . (int) $attachment['id'])) ?>">Download</a>
+                                    <form method="post" action="<?= e(app_url('note_actions.php')) ?>" onsubmit="return confirm('Delete this attachment?');">
+                                        <input type="hidden" name="_csrf" value="<?= e(csrf_token()) ?>">
+                                        <input type="hidden" name="action" value="delete_attachment">
+                                        <input type="hidden" name="note_id" value="<?= (int) $note['id'] ?>">
+                                        <input type="hidden" name="attachment_id" value="<?= (int) $attachment['id'] ?>">
+                                        <button class="btn btn-outline-danger attachment-btn" type="submit">Remove</button>
+                                    </form>
+                                </div>
+                            </article>
+                        <?php endforeach; ?>
+                    </div>
+                <?php else: ?>
+                    <p class="text-secondary mb-0">Files you upload here stay attached to this note and are available after the first save.</p>
+                <?php endif; ?>
             </section>
 
             <section class="share-card danger-card">

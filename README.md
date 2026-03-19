@@ -1,6 +1,6 @@
-﻿# Notes Taken
+# Notes Taken
 
-Plain PHP 8 and MySQL note-taking application with authentication, categories, rich-text notes, sharing, and autosave.
+Plain PHP 8 and MySQL note-taking application with authentication, categories, rich-text notes, sharing, autosave, and optional invite-code gated registration.
 
 ## Run locally
 
@@ -11,8 +11,10 @@ Plain PHP 8 and MySQL note-taking application with authentication, categories, r
    - `DB_NAME`
    - `DB_USER`
    - `DB_PASS`
+   - `APP_INVITE_CODE` (set this to require an invite code for registration)
 3. Serve the project through Apache or PHP's built-in server with `public` as the document root when possible.
-4. Open `register.php` to create your first account.
+4. If you want to restrict signups, set `APP_INVITE_CODE` before opening `register.php`.
+5. Open `register.php` to create your first account.
 
 ## Structure
 

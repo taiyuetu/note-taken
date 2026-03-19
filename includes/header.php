@@ -35,9 +35,13 @@ $flashes = get_flashes();
                 <div class="ms-auto d-flex align-items-center gap-2 flex-wrap nav-actions">
                     <button class="btn app-btn app-btn-ghost" type="button" data-theme-toggle>Theme</button>
                     <?php if ($user): ?>
+                        <a class="btn app-btn app-btn-ghost" href="<?= e(app_url('dashboard.php')) ?>">Home</a>
                         <span class="user-chip"><?= e($user['username']) ?></span>
                         <a class="btn app-btn app-btn-ghost" href="<?= e(app_url('categories.php')) ?>">Categories</a>
-                        <a class="btn app-btn app-btn-primary" href="<?= e(app_url('logout.php')) ?>">Logout</a>
+                        <form method="post" action="<?= e(app_url('logout.php')) ?>" class="d-inline">
+                            <input type="hidden" name="_csrf" value="<?= e(csrf_token()) ?>">
+                            <button class="btn app-btn app-btn-primary" type="submit">Logout</button>
+                        </form>
                     <?php else: ?>
                         <a class="btn app-btn app-btn-ghost" href="<?= e(app_url('login.php')) ?>">Login</a>
                     <?php endif; ?>

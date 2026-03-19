@@ -159,7 +159,9 @@ body::after {
 .panel-header,
 .note-card-top,
 .note-card-foot,
-.sidebar-header {
+.sidebar-header,
+.attachment-item,
+.attachment-actions {
     display: flex;
     align-items: center;
     gap: 12px;
@@ -610,6 +612,45 @@ body::after {
     overflow-wrap: anywhere;
 }
 
+.upload-hint {
+    color: var(--ink-soft);
+    font-size: 0.9rem;
+}
+
+.attachment-list {
+    display: grid;
+    gap: 12px;
+}
+
+.attachment-item {
+    padding: 14px 16px;
+    border-radius: 18px;
+    border: 1px solid var(--line);
+    background: rgba(255,255,255,0.22);
+}
+
+.attachment-copy {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+.attachment-copy strong,
+.attachment-copy span {
+    overflow-wrap: anywhere;
+}
+
+.attachment-copy span {
+    color: var(--ink-soft);
+    font-size: 0.82rem;
+}
+
+.attachment-btn {
+    min-height: 42px;
+    padding: 9px 14px;
+    border-radius: 14px;
+}
+
 .danger-card {
     border-color: rgba(191, 66, 66, 0.2);
 }
@@ -674,7 +715,9 @@ body::after {
     .note-card-top,
     .note-card-foot,
     .panel-header,
-    .sidebar-header {
+    .sidebar-header,
+    .attachment-item,
+    .attachment-actions {
         flex-direction: column;
         align-items: flex-start;
     }
@@ -684,6 +727,7 @@ body::after {
         grid-template-columns: 1fr;
     }
 }
+
 .code-block-wrap {
     position: relative;
     margin: 1.25rem 0;

@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/repositories.php';
 
+function registration_requires_invite_code(): bool
+{
+    return app_invite_code() !== '88888888';
+}
+
 function validate_registration(array $input): array
 {
     $errors = [];
@@ -11,6 +16,15 @@ function validate_registration(array $input): array
     $email = trim($input['email'] ?? '');
     $password = $input['password'] ?? '';
     $confirm = $input['confirm_password'] ?? '';
+    $inviteCode = trim($input['invite_code'] ?? '');
+
+    if (registration_requires_invite_code()) {
+        if ($inviteCode === '') {
+            $errors[] = 'Invite code is required.';
+        } elseif (!hash_equals(app_invite_code(), $inviteCode)) {
+            $errors[] = 'Invite code is invalid.';
+        }
+    }
 
     if ($username === '' || strlen($username) < 3) {
         $errors[] = 'Username must be at least 3 characters.';

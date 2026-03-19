@@ -42,9 +42,15 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="app-card auth-card">
             <p class="eyebrow mb-2">Create account</p>
             <h2 class="section-title mb-2">Register</h2>
-            <p class="text-secondary mb-4">Set up your private workspace.</p>
+            <p class="text-secondary mb-4">Set up your private workspace.<?= registration_requires_invite_code() ? ' An invite code is required.' : '' ?></p>
             <form method="post" class="vstack gap-3">
                 <input type="hidden" name="_csrf" value="<?= e(csrf_token()) ?>">
+                <?php if (registration_requires_invite_code()): ?>
+                <div class="field-stack">
+                    <label class="field-label">Invite code</label>
+                    <input class="form-control" name="invite_code" required value="<?= e(old('invite_code')) ?>">
+                </div>
+                <?php endif; ?>
                 <div class="field-stack">
                     <label class="field-label">Username</label>
                     <input class="form-control" name="username" required minlength="3" value="<?= e(old('username')) ?>">

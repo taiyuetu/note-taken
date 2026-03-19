@@ -1,4 +1,4 @@
-﻿CREATE DATABASE IF NOT EXISTS notes_taken CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS notes_taken CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE notes_taken;
 
 CREATE TABLE IF NOT EXISTS users (
@@ -41,4 +41,23 @@ CREATE TABLE IF NOT EXISTS notes (
     INDEX idx_notes_user_updated (user_id, updated_at),
     INDEX idx_notes_user_category (user_id, category_id),
     INDEX idx_notes_public_token (is_public, share_token)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS note_attachments (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    note_id INT UNSIGNED NOT NULL,
+    user_id INT UNSIGNED NOT NULL,
+    original_name VARCHAR(255) NOT NULL,
+    stored_name VARCHAR(255) NOT NULL,
+    mime_type VARCHAR(120) NOT NULL,
+    file_size INT UNSIGNED NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_note_attachments_note
+        FOREIGN KEY (note_id) REFERENCES notes(id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_note_attachments_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE,
+    INDEX idx_note_attachments_note (note_id),
+    INDEX idx_note_attachments_user (user_id)
 ) ENGINE=InnoDB;

@@ -138,11 +138,87 @@ function clean_html(string $html): string
 {
     $allowed = '<p><br><strong><em><u><ol><ul><li><blockquote><pre><code><h1><h2><h3><h4><a><span>';
     $clean = strip_tags($html, $allowed);
+    $clean = preg_replace('/\son\w+\s*=\s*(".*?"|\'.*?\'|[^\s>]+)/i', '', $clean) ?? '';
+    $clean = preg_replace('/\sstyle\s*=\s*(".*?"|\'.*?\'|[^\s>]+)/i', '', $clean) ?? '';
+    $clean = preg_replace('/javascript\s*:/i', '', $clean) ?? '';
 
-    return preg_replace('/javascript:/i', '', $clean) ?? '';
+    return $clean;
 }
 
 function build_query(array $params): string
 {
     return http_build_query(array_filter($params, static fn ($value) => $value !== null && $value !== ''));
 }
+
+function storage_path(string $path = ''): string
+{
+    $base = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'storage';
+
+    if ($path === '') {
+        return $base;
+    }
+
+    return $base . DIRECTORY_SEPARATOR . ltrim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $path), DIRECTORY_SEPARATOR);
+}
+
+function ensure_directory(string $path): void
+{
+    if (is_dir($path)) {
+        return;
+    }
+
+    mkdir($path, 0775, true);
+}
+
+function normalize_uploaded_files(array $files): array
+{
+    $normalized = [];
+    $names = $files['name'] ?? [];
+    $types = $files['type'] ?? [];
+    $tmpNames = $files['tmp_name'] ?? [];
+    $errors = $files['error'] ?? [];
+    $sizes = $files['size'] ?? [];
+
+    if (!is_array($names)) {
+        return [[
+            'name' => (string) $names,
+            'type' => (string) ($types ?? ''),
+            'tmp_name' => (string) ($tmpNames ?? ''),
+            'error' => (int) ($errors ?? UPLOAD_ERR_NO_FILE),
+            'size' => (int) ($sizes ?? 0),
+        ]];
+    }
+
+    foreach ($names as $index => $name) {
+        $normalized[] = [
+            'name' => (string) $name,
+            'type' => (string) ($types[$index] ?? ''),
+            'tmp_name' => (string) ($tmpNames[$index] ?? ''),
+            'error' => (int) ($errors[$index] ?? UPLOAD_ERR_NO_FILE),
+            'size' => (int) ($sizes[$index] ?? 0),
+        ];
+    }
+
+    return $normalized;
+}
+
+function format_bytes(int $bytes): string
+{
+    if ($bytes < 1024) {
+        return $bytes . ' B';
+    }
+
+    $units = ['KB', 'MB', 'GB'];
+    $value = $bytes / 1024;
+
+    foreach ($units as $unit) {
+        if ($value < 1024 || $unit === 'GB') {
+            return number_format($value, $value >= 10 ? 0 : 1) . ' ' . $unit;
+        }
+
+        $value /= 1024;
+    }
+
+    return $bytes . ' B';
+}
+
