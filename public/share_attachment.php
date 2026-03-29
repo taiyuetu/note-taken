@@ -5,8 +5,15 @@ declare(strict_types=1);
 require_once __DIR__ . '/../includes/repositories.php';
 
 $token = trim($_GET['token'] ?? '');
+$slug = normalize_share_slug($_GET['slug'] ?? null);
 $attachmentId = (int) ($_GET['id'] ?? 0);
-$attachment = ($token !== '' && $attachmentId > 0) ? get_public_attachment($token, $attachmentId) : null;
+$attachment = null;
+
+if ($slug !== null && $attachmentId > 0) {
+    $attachment = get_public_attachment_by_slug($slug, $attachmentId);
+} elseif ($token !== '' && $attachmentId > 0) {
+    $attachment = get_public_attachment($token, $attachmentId);
+}
 
 if (!$attachment) {
     http_response_code(404);

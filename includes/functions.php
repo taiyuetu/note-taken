@@ -29,6 +29,75 @@ function absolute_app_url(string $path = ''): string
     return $scheme . '://' . $host . app_url($path);
 }
 
+function normalize_share_slug(?string $value): ?string
+{
+    $slug = strtolower(trim((string) $value));
+    $slug = preg_replace('/[\s_]+/', '-', $slug) ?? '';
+    $slug = preg_replace('/[^a-z0-9-]/', '', $slug) ?? '';
+    $slug = preg_replace('/-+/', '-', $slug) ?? '';
+    $slug = trim($slug, '-');
+
+    if ($slug === '') {
+        return null;
+    }
+
+    return substr($slug, 0, 80);
+}
+
+function public_share_url(array $note): string
+{
+    $slug = trim((string) ($note['share_slug'] ?? ''));
+
+    if ($slug !== '') {
+        return absolute_app_url(rawurlencode($slug));
+    }
+
+    return absolute_app_url('share.php?token=' . rawurlencode((string) ($note['share_token'] ?? '')));
+}
+
+function public_share_search_terms(string $search): array
+{
+    $terms = [];
+    $trimmed = trim($search);
+
+    if ($trimmed === '') {
+        return $terms;
+    }
+
+    $terms[] = $trimmed;
+
+    $parsed = parse_url($trimmed);
+    if ($parsed !== false) {
+        $query = [];
+        parse_str($parsed['query'] ?? '', $query);
+
+        $token = trim((string) ($query['token'] ?? ''));
+        if ($token !== '') {
+            $terms[] = $token;
+            $terms[] = 'share.php?token=' . $token;
+        }
+
+        $slugFromQuery = normalize_share_slug($query['slug'] ?? null);
+        if ($slugFromQuery !== null) {
+            $terms[] = $slugFromQuery;
+            $terms[] = 'share.php?slug=' . $slugFromQuery;
+        }
+
+        $path = trim((string) ($parsed['path'] ?? ''), '/');
+        if ($path !== '') {
+            $segments = array_values(array_filter(explode('/', $path)));
+            $lastSegment = end($segments);
+            $slugFromPath = normalize_share_slug($lastSegment === false ? null : (string) $lastSegment);
+            if ($slugFromPath !== null && $slugFromPath !== 'public' && $slugFromPath !== 'sharephp') {
+                $terms[] = $slugFromPath;
+                $terms[] = '/' . $slugFromPath;
+            }
+        }
+    }
+
+    return array_values(array_unique(array_filter($terms, static fn ($term) => $term !== '')));
+}
+
 function redirect(string $path): void
 {
     header('Location: ' . app_url($path));

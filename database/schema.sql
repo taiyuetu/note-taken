@@ -1,4 +1,4 @@
-CREATE DATABASE IF NOT EXISTS notes_taken CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+﻿CREATE DATABASE IF NOT EXISTS notes_taken CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE notes_taken;
 
 CREATE TABLE IF NOT EXISTS users (
@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS notes (
     content MEDIUMTEXT NULL,
     is_public TINYINT(1) NOT NULL DEFAULT 0,
     share_token CHAR(32) NOT NULL,
+    share_slug VARCHAR(80) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_notes_user
@@ -38,9 +39,11 @@ CREATE TABLE IF NOT EXISTS notes (
         FOREIGN KEY (category_id) REFERENCES categories(id)
         ON DELETE SET NULL,
     CONSTRAINT uq_notes_share_token UNIQUE (share_token),
+    CONSTRAINT uq_notes_share_slug UNIQUE (share_slug),
     INDEX idx_notes_user_updated (user_id, updated_at),
     INDEX idx_notes_user_category (user_id, category_id),
-    INDEX idx_notes_public_token (is_public, share_token)
+    INDEX idx_notes_public_token (is_public, share_token),
+    INDEX idx_notes_public_slug (is_public, share_slug)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS note_attachments (

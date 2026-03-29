@@ -4,6 +4,68 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/functions.php';
 
+function ensure_notes_share_slug_support(): void
+{
+    static $initialized = false;
+
+    if ($initialized) {
+        return;
+    }
+
+    $databaseName = (string) db()->query('SELECT DATABASE()')->fetchColumn();
+
+    if ($databaseName === '') {
+        $initialized = true;
+        return;
+    }
+
+    $columnStmt = db()->prepare('
+        SELECT COUNT(*)
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = :schema_name
+          AND TABLE_NAME = :table_name
+          AND COLUMN_NAME = :column_name
+    ');
+    $columnStmt->execute([
+        'schema_name' => $databaseName,
+        'table_name' => 'notes',
+        'column_name' => 'share_slug',
+    ]);
+
+    if ((int) $columnStmt->fetchColumn() === 0) {
+        db()->exec('ALTER TABLE notes ADD COLUMN share_slug VARCHAR(80) NULL AFTER share_token');
+    }
+
+    $indexStmt = db()->prepare('
+        SELECT COUNT(*)
+        FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = :schema_name
+          AND TABLE_NAME = :table_name
+          AND INDEX_NAME = :index_name
+    ');
+    $indexStmt->execute([
+        'schema_name' => $databaseName,
+        'table_name' => 'notes',
+        'index_name' => 'uq_notes_share_slug',
+    ]);
+
+    if ((int) $indexStmt->fetchColumn() === 0) {
+        db()->exec('ALTER TABLE notes ADD CONSTRAINT uq_notes_share_slug UNIQUE (share_slug)');
+    }
+
+    $indexStmt->execute([
+        'schema_name' => $databaseName,
+        'table_name' => 'notes',
+        'index_name' => 'idx_notes_public_slug',
+    ]);
+
+    if ((int) $indexStmt->fetchColumn() === 0) {
+        db()->exec('ALTER TABLE notes ADD INDEX idx_notes_public_slug (is_public, share_slug)');
+    }
+
+    $initialized = true;
+}
+
 function find_user_by_email_or_username(string $identifier): ?array
 {
     $stmt = db()->prepare('SELECT * FROM users WHERE email = :email_identifier OR username = :username_identifier LIMIT 1');
@@ -96,13 +158,53 @@ function delete_category(int $userId, int $categoryId): void
 
 function get_dashboard_notes(int $userId, string $search, ?int $categoryId, int $page, int $perPage = 8): array
 {
+    ensure_notes_share_slug_support();
+
     $where = ['n.user_id = :user_id'];
     $params = ['user_id' => $userId];
 
     if ($search !== '') {
-        $where[] = '(n.title LIKE :search_title OR n.content LIKE :search_content)';
-        $params['search_title'] = '%' . $search . '%';
-        $params['search_content'] = '%' . $search . '%';
+        $searchTerms = public_share_search_terms($search);
+        $termSql = [];
+
+        foreach ($searchTerms as $index => $term) {
+            $titleKey = 'search_title_' . $index;
+            $contentKey = 'search_content_' . $index;
+            $slugKey = 'search_slug_' . $index;
+            $tokenKey = 'search_token_' . $index;
+            $prettyKey = 'search_pretty_' . $index;
+            $tokenPathKey = 'search_token_path_' . $index;
+            $slugPathKey = 'search_slug_path_' . $index;
+            $likeTerm = '%' . $term . '%';
+
+            $termSql[] = "(
+                n.title LIKE :{$titleKey}
+                OR n.content LIKE :{$contentKey}
+                OR COALESCE(n.share_slug, '') LIKE :{$slugKey}
+                OR n.share_token LIKE :{$tokenKey}
+                OR CASE
+                    WHEN n.share_slug IS NOT NULL AND n.share_slug != '' THEN CONCAT('/', n.share_slug)
+                    ELSE ''
+                END LIKE :{$prettyKey}
+                OR CONCAT('/share.php?token=', n.share_token) LIKE :{$tokenPathKey}
+                OR CASE
+                    WHEN n.share_slug IS NOT NULL AND n.share_slug != '' THEN CONCAT('/share.php?slug=', n.share_slug)
+                    ELSE ''
+                END LIKE :{$slugPathKey}
+            )";
+
+            $params[$titleKey] = $likeTerm;
+            $params[$contentKey] = $likeTerm;
+            $params[$slugKey] = $likeTerm;
+            $params[$tokenKey] = $likeTerm;
+            $params[$prettyKey] = $likeTerm;
+            $params[$tokenPathKey] = $likeTerm;
+            $params[$slugPathKey] = $likeTerm;
+        }
+
+        if ($termSql !== []) {
+            $where[] = '(' . implode(' OR ', $termSql) . ')';
+        }
     }
 
     if ($categoryId !== null) {
@@ -113,7 +215,10 @@ function get_dashboard_notes(int $userId, string $search, ?int $categoryId, int 
     $whereSql = implode(' AND ', $where);
 
     $countStmt = db()->prepare("SELECT COUNT(*) FROM notes n WHERE {$whereSql}");
-    $countStmt->execute($params);
+    foreach ($params as $key => $value) {
+        $countStmt->bindValue(':' . $key, $value);
+    }
+    $countStmt->execute();
     $total = (int) $countStmt->fetchColumn();
 
     $offset = max(0, ($page - 1) * $perPage);
@@ -147,9 +252,11 @@ function get_dashboard_notes(int $userId, string $search, ?int $categoryId, int 
 
 function create_note(int $userId, string $title, ?int $categoryId, string $content = '', int $isPublic = 0): int
 {
+    ensure_notes_share_slug_support();
+
     $stmt = db()->prepare('
-        INSERT INTO notes (user_id, category_id, title, content, is_public, share_token)
-        VALUES (:user_id, :category_id, :title, :content, :is_public, :share_token)
+        INSERT INTO notes (user_id, category_id, title, content, is_public, share_token, share_slug)
+        VALUES (:user_id, :category_id, :title, :content, :is_public, :share_token, :share_slug)
     ');
 
     $stmt->execute([
@@ -159,6 +266,7 @@ function create_note(int $userId, string $title, ?int $categoryId, string $conte
         'content' => clean_html($content),
         'is_public' => $isPublic,
         'share_token' => bin2hex(random_bytes(16)),
+        'share_slug' => null,
     ]);
 
     return (int) db()->lastInsertId();
@@ -190,6 +298,8 @@ function ensure_note_attachments_table(): void
 
 function get_note(int $userId, int $noteId): ?array
 {
+    ensure_notes_share_slug_support();
+
     $stmt = db()->prepare('
         SELECT n.*, c.name AS category_name
         FROM notes n
@@ -285,6 +395,8 @@ function delete_note_attachment(int $userId, int $attachmentId): ?array
 
 function update_note(int $userId, int $noteId, string $title, ?int $categoryId, string $content, int $isPublic): void
 {
+    ensure_notes_share_slug_support();
+
     $stmt = db()->prepare('
         UPDATE notes
         SET title = :title,
@@ -305,6 +417,40 @@ function update_note(int $userId, int $noteId, string $title, ?int $categoryId, 
     ]);
 }
 
+function share_slug_exists(string $slug, ?int $ignoreNoteId = null): bool
+{
+    ensure_notes_share_slug_support();
+
+    $sql = 'SELECT id FROM notes WHERE share_slug = :share_slug';
+    $params = ['share_slug' => $slug];
+
+    if ($ignoreNoteId !== null && $ignoreNoteId > 0) {
+        $sql .= ' AND id != :ignore_id';
+        $params['ignore_id'] = $ignoreNoteId;
+    }
+
+    $stmt = db()->prepare($sql . ' LIMIT 1');
+    $stmt->execute($params);
+
+    return (bool) $stmt->fetchColumn();
+}
+
+function update_note_share_slug(int $userId, int $noteId, ?string $shareSlug): void
+{
+    ensure_notes_share_slug_support();
+
+    $stmt = db()->prepare('
+        UPDATE notes
+        SET share_slug = :share_slug,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = :id AND user_id = :user_id
+    ');
+    $stmt->bindValue(':share_slug', $shareSlug, $shareSlug === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+    $stmt->bindValue(':id', $noteId, PDO::PARAM_INT);
+    $stmt->bindValue(':user_id', $userId, PDO::PARAM_INT);
+    $stmt->execute();
+}
+
 function delete_note(int $userId, int $noteId): void
 {
     $stmt = db()->prepare('DELETE FROM notes WHERE id = :id AND user_id = :user_id');
@@ -313,6 +459,8 @@ function delete_note(int $userId, int $noteId): void
 
 function regenerate_share_token(int $userId, int $noteId): string
 {
+    ensure_notes_share_slug_support();
+
     $token = bin2hex(random_bytes(16));
 
     $stmt = db()->prepare('
@@ -327,6 +475,8 @@ function regenerate_share_token(int $userId, int $noteId): string
 
 function get_public_note(string $token): ?array
 {
+    ensure_notes_share_slug_support();
+
     $stmt = db()->prepare('
         SELECT n.*, u.username, c.name AS category_name
         FROM notes n
@@ -339,9 +489,28 @@ function get_public_note(string $token): ?array
 
     return $stmt->fetch() ?: null;
 }
+
+function get_public_note_by_slug(string $slug): ?array
+{
+    ensure_notes_share_slug_support();
+
+    $stmt = db()->prepare('
+        SELECT n.*, u.username, c.name AS category_name
+        FROM notes n
+        INNER JOIN users u ON u.id = n.user_id
+        LEFT JOIN categories c ON c.id = n.category_id
+        WHERE n.share_slug = :share_slug AND n.is_public = 1
+        LIMIT 1
+    ');
+    $stmt->execute(['share_slug' => $slug]);
+
+    return $stmt->fetch() ?: null;
+}
+
 function get_public_note_attachments(string $token): array
 {
     ensure_note_attachments_table();
+    ensure_notes_share_slug_support();
 
     $stmt = db()->prepare('
         SELECT a.id, a.note_id, a.original_name, a.mime_type, a.file_size, a.created_at
@@ -355,9 +524,27 @@ function get_public_note_attachments(string $token): array
     return $stmt->fetchAll();
 }
 
+function get_public_note_attachments_by_slug(string $slug): array
+{
+    ensure_note_attachments_table();
+    ensure_notes_share_slug_support();
+
+    $stmt = db()->prepare('
+        SELECT a.id, a.note_id, a.original_name, a.mime_type, a.file_size, a.created_at
+        FROM note_attachments a
+        INNER JOIN notes n ON n.id = a.note_id
+        WHERE n.share_slug = :share_slug AND n.is_public = 1
+        ORDER BY a.created_at DESC, a.id DESC
+    ');
+    $stmt->execute(['share_slug' => $slug]);
+
+    return $stmt->fetchAll();
+}
+
 function get_public_attachment(string $token, int $attachmentId): ?array
 {
     ensure_note_attachments_table();
+    ensure_notes_share_slug_support();
 
     $stmt = db()->prepare('
         SELECT a.*, n.title AS note_title
@@ -369,6 +556,26 @@ function get_public_attachment(string $token, int $attachmentId): ?array
     $stmt->execute([
         'id' => $attachmentId,
         'token' => $token,
+    ]);
+
+    return $stmt->fetch() ?: null;
+}
+
+function get_public_attachment_by_slug(string $slug, int $attachmentId): ?array
+{
+    ensure_note_attachments_table();
+    ensure_notes_share_slug_support();
+
+    $stmt = db()->prepare('
+        SELECT a.*, n.title AS note_title
+        FROM note_attachments a
+        INNER JOIN notes n ON n.id = a.note_id
+        WHERE a.id = :id AND n.share_slug = :share_slug AND n.is_public = 1
+        LIMIT 1
+    ');
+    $stmt->execute([
+        'id' => $attachmentId,
+        'share_slug' => $slug,
     ]);
 
     return $stmt->fetch() ?: null;

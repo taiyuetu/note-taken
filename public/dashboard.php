@@ -88,7 +88,7 @@ require_once __DIR__ . '/../includes/header.php';
         <form class="search-panel mb-4" method="get">
             <div class="field-stack">
                 <label class="field-label">Search</label>
-                <input class="form-control" name="search" placeholder="Search title or content" value="<?= e($search) ?>">
+                <input class="form-control" name="search" placeholder="Search title, content, slug, or public URL" value="<?= e($search) ?>">
             </div>
             <div class="field-stack">
                 <label class="field-label">Category</label>
@@ -123,6 +123,14 @@ require_once __DIR__ . '/../includes/header.php';
             <?php endif; ?>
 
             <?php foreach ($notesPage['data'] as $note): ?>
+                <?php
+                $prettyUrl = '';
+                $tokenUrl = '';
+                if ((int) $note['is_public'] === 1) {
+                    $prettyUrl = !empty($note['share_slug']) ? public_share_url($note) : '';
+                    $tokenUrl = absolute_app_url('share.php?token=' . rawurlencode((string) $note['share_token']));
+                }
+                ?>
                 <article class="note-card">
                     <div class="note-card-top">
                         <div>
@@ -137,6 +145,20 @@ require_once __DIR__ . '/../includes/header.php';
                         </div>
                     </div>
                     <p class="note-excerpt mb-3"><?= e(excerpt($note['content'])) ?></p>
+                    <?php if ($tokenUrl !== ''): ?>
+                        <div class="dashboard-share-links mb-3">
+                            <?php if ($prettyUrl !== ''): ?>
+                                <div>
+                                    <span class="dashboard-share-label">Pretty URL</span>
+                                    <span class="code-chip dashboard-share-chip"><?= e($prettyUrl) ?></span>
+                                </div>
+                            <?php endif; ?>
+                            <div>
+                                <span class="dashboard-share-label">Token URL</span>
+                                <span class="code-chip dashboard-share-chip"><?= e($tokenUrl) ?></span>
+                            </div>
+                        </div>
+                    <?php endif; ?>
                     <div class="note-card-foot">
                         <span class="mono small text-secondary">ID <?= (int) $note['id'] ?></span>
                         <a class="note-link" href="<?= e(app_url('note.php?id=' . $note['id'])) ?>">Open note</a>

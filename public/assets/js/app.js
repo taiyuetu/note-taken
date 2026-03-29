@@ -115,6 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const title = document.querySelector('[name="title"]')?.value || 'Untitled note';
                 const categoryId = document.querySelector('[name="category_id"]')?.value || '';
                 const isPublic = document.querySelector('[name="is_public"]')?.checked ? '1' : '0';
+                const shareSlug = document.querySelector('[name="share_slug"]')?.value || '';
 
                 fetch(autosaveUrl, {
                     method: 'POST',
@@ -129,7 +130,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         title: title,
                         category_id: categoryId,
                         content: textarea.value,
-                        is_public: isPublic
+                        is_public: isPublic,
+                        share_slug: shareSlug
                     })
                 }).then((response) => response.json())
                     .then((data) => {

@@ -19,8 +19,10 @@ if ($noteId > 0 && !$note) {
 }
 
 $shareUrl = '';
+$defaultShareUrl = '';
 if ($note && (int) $note['is_public'] === 1) {
-    $shareUrl = absolute_app_url('share.php?token=' . $note['share_token']);
+    $shareUrl = public_share_url($note);
+    $defaultShareUrl = absolute_app_url('share.php?token=' . rawurlencode((string) $note['share_token']));
 }
 
 require_once __DIR__ . '/../includes/header.php';
@@ -80,9 +82,20 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
 
                 <div class="editor-footer">
-                    <div class="form-check form-switch public-switch">
-                        <input class="form-check-input" type="checkbox" role="switch" id="publicSwitch" name="is_public" <?= isset($note['is_public']) && (int) $note['is_public'] === 1 ? 'checked' : '' ?>>
-                        <label class="form-check-label" for="publicSwitch">Enable public sharing</label>
+                    <div class="d-flex flex-column gap-3">
+                        <div class="form-check form-switch public-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="publicSwitch" name="is_public" <?= isset($note['is_public']) && (int) $note['is_public'] === 1 ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="publicSwitch">Enable public sharing</label>
+                        </div>
+                        <div class="field-stack">
+                            <label class="field-label" for="shareSlug">Custom public URL</label>
+                            <input class="form-control" id="shareSlug" name="share_slug" maxlength="80" value="<?= e((string) ($note['share_slug'] ?? '')) ?>" placeholder="my-note">
+                            <p class="upload-hint mb-0">
+                                Leave blank to keep the default token link. Custom links use base path
+                                <span class="code-chip"><?= e(rtrim(absolute_app_url(''), '/') . '/') ?></span>
+                                plus letters, numbers, and hyphens.
+                            </p>
+                        </div>
                     </div>
                     <div class="editor-actions">
                         <span class="small text-secondary" data-autosave-status><?= $note ? 'Autosave ready' : 'Autosave starts after the first save' ?></span>
@@ -98,12 +111,17 @@ require_once __DIR__ . '/../includes/header.php';
             <p class="eyebrow mb-1">Share</p>
             <h2 class="section-title mb-2">Public link</h2>
             <?php if ($shareUrl !== ''): ?>
-                <p class="code-chip mb-3"><?= e($shareUrl) ?></p>
+                <?php if (!empty($note['share_slug'])): ?>
+                    <p class="text-secondary small mb-2">Pretty URL</p>
+                    <p class="code-chip mb-3"><?= e($shareUrl) ?></p>
+                <?php endif; ?>
+                <p class="text-secondary small mb-2">Default token URL</p>
+                <p class="code-chip mb-3"><?= e($defaultShareUrl) ?></p>
                 <form method="post" action="<?= e(app_url('note_actions.php')) ?>" class="d-grid">
                     <input type="hidden" name="_csrf" value="<?= e(csrf_token()) ?>">
                     <input type="hidden" name="action" value="regenerate_share">
                     <input type="hidden" name="note_id" value="<?= (int) $note['id'] ?>">
-                    <button class="btn app-btn app-btn-ghost" type="submit">Refresh link</button>
+                    <button class="btn app-btn app-btn-ghost" type="submit">Refresh default link</button>
                 </form>
             <?php else: ?>
                 <p class="text-secondary mb-0">Turn on sharing and save the note to generate a public URL.</p>
@@ -130,7 +148,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <article class="attachment-item">
                                 <div class="attachment-copy">
                                     <strong><?= e($attachment['original_name']) ?></strong>
-                                    <span><?= e(strtoupper($attachment['mime_type'])) ?> · <?= e(format_bytes((int) $attachment['file_size'])) ?></span>
+                                    <span><?= e(strtoupper($attachment['mime_type'])) ?> | <?= e(format_bytes((int) $attachment['file_size'])) ?></span>
                                 </div>
                                 <div class="attachment-actions">
                                     <a class="btn app-btn app-btn-ghost attachment-btn" href="<?= e(app_url('attachment.php?id=' . (int) $attachment['id'])) ?>">Download</a>

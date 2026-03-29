@@ -154,7 +154,13 @@ if ($action === 'save') {
     $content = trim($_POST['content'] ?? '');
     $categoryId = (int) ($_POST['category_id'] ?? 0);
     $isPublic = isset($_POST['is_public']) ? 1 : 0;
+    $shareSlug = normalize_share_slug($_POST['share_slug'] ?? null);
     $newCategory = trim($_POST['new_category'] ?? '');
+
+    if ($shareSlug !== null && share_slug_exists($shareSlug, $noteId > 0 ? $noteId : null)) {
+        flash('warning', 'That public URL is already in use. Please choose another one.');
+        redirect('note.php' . ($noteId > 0 ? '?id=' . $noteId : ''));
+    }
 
     if ($newCategory !== '') {
         if (!category_name_exists($userId, $newCategory)) {
@@ -174,6 +180,8 @@ if ($action === 'save') {
         $noteId = create_note($userId, $title !== '' ? $title : 'Untitled note', $categoryId, $content, $isPublic);
         $message = 'Note created.';
     }
+
+    update_note_share_slug($userId, $noteId, $shareSlug);
 
     if (isset($_FILES['attachments'])) {
         $uploadResult = save_uploaded_attachments($userId, $noteId, $_FILES['attachments']);
@@ -202,6 +210,11 @@ if ($action === 'autosave') {
             trim($_POST['content'] ?? ''),
             (int) ($_POST['is_public'] ?? 0)
         );
+
+        $shareSlug = normalize_share_slug($_POST['share_slug'] ?? null);
+        if ($shareSlug === null || !share_slug_exists($shareSlug, $noteId)) {
+            update_note_share_slug($userId, $noteId, $shareSlug);
+        }
     }
 
     header('Content-Type: application/json');
@@ -239,7 +252,7 @@ if ($action === 'delete_attachment') {
 if ($action === 'regenerate_share') {
     $noteId = (int) ($_POST['note_id'] ?? 0);
     regenerate_share_token($userId, $noteId);
-    flash('success', 'Share link refreshed.');
+    flash('success', 'Default share link refreshed.');
     redirect('note.php?id=' . $noteId);
 }
 
